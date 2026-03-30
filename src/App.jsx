@@ -9,7 +9,7 @@ import useGetCurrent from './hooks/useGetCurrent';
 import WebsiteEditor from './pages/Editor';
 import Auth from './pages/Auth';
 
-export const serverUrl = "http://localhost:8000"
+export const serverUrl = "https://cromp-ai-backend.onrender.com"
 
 function App() {
   const { userData } = useSelector((state) => state.user)
