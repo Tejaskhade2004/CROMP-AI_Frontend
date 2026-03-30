@@ -13,19 +13,25 @@ function useGetCurrent() {
                 dispatch(setUserData(result.data));
 
             } catch (error) {
-                // It is expected to get a 400 when the user is not authenticated yet.
-                if (error.response?.status === 400) {
-                    console.log('GET /api/user/me returned 400', {
-                        data: error.response.data,
-                        headers: error.response.headers
+                const status = error.response?.status
+                const code = error.response?.data?.code
+                
+                // Expected when user is not authenticated
+                if (status === 401 || status === 400) {
+                    console.log('User not authenticated:', {
+                        status,
+                        code,
+                        message: error.response?.data?.message
                     });
+                    // Clear any stale user data
+                    dispatch(setUserData(null))
                 } else {
-                    console.log(error);
+                    console.log('GetCurrent error:', error);
                 }
             }
         }
         getCurrentUser()
-    }, [])
+    }, [dispatch])
 }
 
 export default useGetCurrent;

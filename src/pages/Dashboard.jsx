@@ -40,7 +40,19 @@ const Dashboard = () => {
         setWebsites(Array.isArray(response.data) ? response.data : [])
       } catch (error) {
         console.error('Error fetching websites:', error)
-        setFetchError(error?.response?.data?.message || 'Failed to fetch websites')
+        
+        const status = error.response?.status
+        const code = error.response?.data?.code
+        
+        if (status === 401) {
+          setFetchError('Session expired. Please login again.')
+          navigate('/auth')
+        } else if (status === 400 && code === 'NO_TOKEN') {
+          setFetchError('Please login to view your websites.')
+          navigate('/auth')
+        } else {
+          setFetchError(error?.response?.data?.message || 'Failed to fetch websites')
+        }
       } finally {
         setLoading(false)
       }
