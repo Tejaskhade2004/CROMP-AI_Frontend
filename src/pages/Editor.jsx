@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { serverUrl } from '../App';
 import axios from 'axios';
-import { useParams } from 'react-router-dom';
-import { ExternalLink, FileCode, LucideMonitor, Rocket, Send, X } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Code, ExternalLink, Eye, FileCode, LucideMonitor, MessageCircle, Rocket, Send, X } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { motion } from 'motion/react';
@@ -10,6 +10,7 @@ import { motion } from 'motion/react';
 
 function WebsiteEditor() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [website, setWebsite] = useState(null);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
@@ -23,6 +24,8 @@ function WebsiteEditor() {
     const [deployLoading, setDeployLoading] = useState(false);
     const [deployMessage, setDeployMessage] = useState("");
     const [deployError, setDeployError] = useState("");
+    const [mobileView, setMobileView] = useState('preview');
+
     const thinkingStep = [
         "Analyzing the prompt ...",
         "Generating the code ...",
@@ -230,79 +233,164 @@ function WebsiteEditor() {
     }
 
     return (
-        <div className='h-screen w-screen bg-[#050505] text-white flex overflow-hidden'>
+        <div className='h-screen w-screen bg-[#050505] text-white flex flex-col overflow-hidden'>
 
-            {/* LEFT PANEL */}
-            <aside className='w-[380px] flex flex-col border-r border-white/10 bg-[#1a1a1a]'>
+            {/* Mobile Tabs */}
+            <div className='md:hidden flex border-b border-white/10 bg-black/90 z-20'>
+                <button
+                    className={`flex-1 py-3 text-xs text-center ${mobileView === 'chat' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400'}`}
+                    onClick={() => setMobileView('chat')}
+                >
+                    <MessageCircle size={16} />
+                    <div>Chat</div>
+                </button>
+                <button
+                    className={`flex-1 py-3 text-xs text-center ${mobileView === 'preview' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400'}`}
+                    onClick={() => setMobileView('preview')}
+                >
+                    <Eye size={16} />
+                    <div>Preview</div>
+                </button>
+                <button
+                    className={`flex-1 py-3 text-xs text-center ${mobileView === 'code' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-zinc-400'}`}
+                    onClick={() => setMobileView('code')}
+                >
+                    <Code size={16} />
+                    <div>Code</div>
+                </button>
+            </div>
 
-                <Header title={website?.title} />
+            {/* Desktop Layout */}
+            <div className='hidden md:flex flex-1 overflow-hidden'>
 
-                <div className='flex-1 min-h-0'>
-                    <Chat
-                        message={message}
-                        prompt={prompt}
-                        setPrompt={setPrompt}
-                        handleUpdateWebsite={handleUpdateWebsite}
-                        updateLoading={updateLoading}
-                    />
-                </div>
+                <aside className='w-[380px] flex flex-col border-r border-white/10 bg-[#1a1a1a]'>
+                    <Header title={website?.title} onBack={() => navigate('/dashboard')} />
+                    <div className='flex-1 min-h-0'>
+                        <Chat
+                            message={message}
+                            prompt={prompt}
+                            setPrompt={setPrompt}
+                            handleUpdateWebsite={handleUpdateWebsite}
+                            updateLoading={updateLoading}
+                        />
+                    </div>
+                </aside>
 
-            </aside>
+                <div className='flex-1 flex flex-col min-w-0'>
 
-            {/* RIGHT PANEL */}
-            <div className='flex-1 flex flex-col min-w-0'>
-
-                {/* Top Bar */}
-                <div className='h-14 px-4 flex justify-between items-center border-b border-white/10 bg-black/80'>
-                    <span className='text-xs text-zinc-400'>Live Preview</span>
-
-                    <div className='flex gap-3 items-center'>
-                        <button
-                            className='flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-sm font-semibold hover:scale-105 transition disabled:opacity-60 disabled:cursor-not-allowed'
-                            onClick={handleDeployWebsite}
-                            disabled={deployLoading}
-                        >
-                            <Rocket size={14} />
-                            {deployLoading ? "Deploying..." : "Deploy"}
-                        </button>
-
-                        {website?.deployed && (
+                    <div className='h-14 px-4 flex justify-between items-center border-b border-white/10 bg-black/80'>
+                        <span className='text-xs text-zinc-400'>Live Preview</span>
+                        <div className='flex gap-3 items-center'>
                             <button
-                                className='flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 text-sm font-semibold hover:bg-emerald-500/10 transition'
-                                onClick={handleOpenLive}
+                                className='flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-sm font-semibold hover:scale-105 transition disabled:opacity-60 disabled:cursor-not-allowed'
+                                onClick={handleDeployWebsite}
+                                disabled={deployLoading}
                             >
-                                <ExternalLink size={14} />
-                                Open Live
+                                <Rocket size={14} />
+                                {deployLoading ? 'Deploying...' : 'Deploy'}
                             </button>
-                        )}
 
-                        <button className='p-2 hover:bg-white/5 rounded' onClick={() => setShowCode(true)}>
-                            <FileCode size={18} />
-                        </button>
+                            {website?.deployed && (
+                                <button
+                                    className='flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-400/30 text-emerald-200 text-sm font-semibold hover:bg-emerald-500/10 transition'
+                                    onClick={handleOpenLive}
+                                >
+                                    <ExternalLink size={14} />
+                                    Open Live
+                                </button>
+                            )}
 
-                        <button className='p-2 hover:bg-white/5 rounded' onClick={() => setShowFullPreview(true)}>
-                            <LucideMonitor size={18} />
-                        </button>
+                            <button className='p-2 hover:bg-white/5 rounded' onClick={() => setShowCode(true)}>
+                                <FileCode size={18} />
+                            </button>
+
+                            <button className='p-2 hover:bg-white/5 rounded' onClick={() => setShowFullPreview(true)}>
+                                <LucideMonitor size={18} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {(deployMessage || deployError) && (
+                        <div
+                            className={`px-4 py-2 text-xs border-b ${
+                                deployError
+                                    ? 'text-red-300 bg-red-500/10 border-red-400/20'
+                                    : 'text-emerald-300 bg-emerald-500/10 border-emerald-400/20'
+                            }`}
+                        >
+                            {deployError || deployMessage}
+                        </div>
+                    )}
+
+                    <div className='flex-1 min-h-0'>
+                        <iframe srcDoc={code} className='w-full h-full bg-white' />
                     </div>
                 </div>
+            </div>
 
-                {(deployMessage || deployError) && (
-                    <div
-                        className={`px-4 py-2 text-xs border-b ${
-                            deployError
-                                ? "text-red-300 bg-red-500/10 border-red-400/20"
-                                : "text-emerald-300 bg-emerald-500/10 border-emerald-400/20"
-                        }`}
-                    >
-                        {deployError || deployMessage}
+            {/* Mobile Layout */}
+            <div className='flex-1 md:hidden overflow-hidden'>
+                {mobileView === 'chat' && (
+                    <div className='flex flex-col h-full'>
+                        <Header title={website?.title} onBack={() => navigate('/dashboard')} />
+                        <div className='flex-1 min-h-0 overflow-hidden'>
+                            <Chat
+                                message={message}
+                                prompt={prompt}
+                                setPrompt={setPrompt}
+                                handleUpdateWebsite={handleUpdateWebsite}
+                                updateLoading={updateLoading}
+                            />
+                        </div>
                     </div>
                 )}
 
-                {/* Preview */}
-                <div className='flex-1 min-h-0'>
-                    <iframe ref={iframeRef} className='w-full h-full bg-white' />
-                </div>
+                {mobileView === 'preview' && (
+                    <div className='flex flex-col h-full'>
+                        <div className='h-14 px-4 flex justify-between items-center border-b border-white/10 bg-black/80'>
+                            <span className='text-xs text-zinc-400'>Live Preview</span>
+                            <button className='p-2 hover:bg-white/5 rounded' onClick={() => setShowFullPreview(true)}>
+                                <LucideMonitor size={18} />
+                            </button>
+                        </div>
+                        {(deployMessage || deployError) && (
+                            <div
+                                className={`px-4 py-2 text-xs border-b ${
+                                    deployError
+                                        ? 'text-red-300 bg-red-500/10 border-red-400/20'
+                                        : 'text-emerald-300 bg-emerald-500/10 border-emerald-400/20'
+                                }`}
+                            >
+                                {deployError || deployMessage}
+                            </div>
+                        )}
+                        <div className='flex-1 min-h-0'>
+                            <iframe srcDoc={code} className='w-full h-full bg-white' />
+                        </div>
+                    </div>
+                )}
 
+                {mobileView === 'code' && (
+                    <div className='flex flex-col h-full'>
+                        <div className='h-14 px-4 flex items-center justify-between border-b border-white/10 bg-black/80'>
+                            <span className='text-sm font-medium'>index.html</span>
+                        </div>
+                        <div className='flex-1 min-h-0 bg-[#1a1a1a]'>
+                            <Editor
+                                height='100%'
+                                defaultLanguage='html'
+                                theme='vs-dark'
+                                value={code}
+                                options={{
+                                    readOnly: false,
+                                    wordWrap: 'on',
+                                    minimap: { enabled: false }
+                                }}
+                                onChange={(value) => setCode(value)}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             <AnimatePresence>
@@ -356,12 +444,16 @@ export default WebsiteEditor;
 
 
 // ✅ Header Component (OUTSIDE)
-function Header({ title }) {
+function Header({ title, onBack }) {
     return (
-        <div className='h-14 px-4 flex items-center justify-between border-b border-white/10'>
-            <span className='font-semibold truncate'>
-                {title}
+        <div className='h-14 px-4 flex items-center justify-between border-b border-white/10 bg-[#1a1a1a]'>
+            <button onClick={onBack} className='p-2 rounded-md hover:bg-white/10'>
+                <ArrowLeft size={18} />
+            </button>
+            <span className='font-semibold truncate text-sm'>
+                {title || 'Editor'}
             </span>
+            <span className='w-8' />
         </div>
     );
 }

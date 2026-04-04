@@ -1,0 +1,16 @@
+{
+  "name": "Cromp.AI",
+  "short_name": "Cromp.AI",
+  "description": "AI-powered website generator",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#040407",
+  "theme_color": "#22d3ee",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

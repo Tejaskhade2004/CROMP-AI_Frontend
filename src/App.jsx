@@ -3,6 +3,7 @@ import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Generate from './pages/Generate';
 import Pricings from './pages/Pricings';
+import AIStudio from './pages/AIStudio';
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { useSelector } from 'react-redux';
 import useGetCurrent from './hooks/useGetCurrent';
@@ -25,6 +26,7 @@ function App() {
     <Route path='/dashboard' element={userData ? <Dashboard/> : <Home/>} />
     <Route path='/generate' element={userData ? <Generate/> : <Home/>} />
     <Route path='/editor/:id' element={userData ? <WebsiteEditor/> : <Home/>} />
+    <Route path='/ai-studio' element={userData ? <AIStudio/> : <Home/>} />
    </Routes>
    </BrowserRouter>
   );

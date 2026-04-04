@@ -169,15 +169,26 @@ const Dashboard = () => {
             <h1 className='text-lg font-semibold'>Dashboard</h1>
           </div>
 
-          <motion.button
-            className='px-4 py-2 rounded-lg bg-white text-black text-sm font-semibold flex items-center gap-2'
-            onClick={() => navigate('/generate')}
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.96 }}
-          >
-            <Plus size={14} />
-            New Website
-          </motion.button>
+          <div className='flex gap-3'>
+            <motion.button
+              className='px-4 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-black text-sm font-semibold flex items-center gap-2'
+              onClick={() => navigate('/ai-studio')}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Sparkles size={14} />
+              AI Studio
+            </motion.button>
+            <motion.button
+              className='px-4 py-2 rounded-lg bg-white text-black text-sm font-semibold flex items-center gap-2'
+              onClick={() => navigate('/generate')}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Plus size={14} />
+              New Website
+            </motion.button>
+          </div>
         </div>
       </div>
 
