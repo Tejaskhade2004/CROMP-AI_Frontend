@@ -4,8 +4,9 @@ import { ArrowLeft, Check, CircleDollarSign, Gauge, ShieldCheck, Sparkles, Zap }
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import axios from 'axios'
-import { serverUrl } from '../App'
+import { serverUrl } from '../config/api'
 import { setUserData } from '../redux/userSlice'
+import PageBackgroundVideo from '../components/PageBackgroundVideo'
 
 const plans = [
   {
@@ -177,7 +178,8 @@ function Pricings() {
   }
 
   return (
-    <div className='relative min-h-screen overflow-hidden bg-[#05050b] text-white'>
+    <div className='relative isolate min-h-screen overflow-hidden bg-[#05050b] text-white'>
+      <PageBackgroundVideo src='/videos/image%206.mp4' overlayClass='bg-[#05050b]/60' videoClass='opacity-40' />
       <AnimatedBackdrop />
 
       <header className='sticky top-0 z-40 border-b border-white/10 bg-[#060611]/75 backdrop-blur-xl'>

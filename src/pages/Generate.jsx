@@ -1,73 +1,63 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Clock3, Layers3, Sparkles, WandSparkles } from 'lucide-react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import axios from 'axios';
-import { serverUrl } from '../App';
+import { serverUrl } from '../config/api';
+import PageBackgroundVideo from '../components/PageBackgroundVideo';
+import { setUserData } from '../redux/userSlice';
 
-const generationModels = [
+void motion;
+
+const FALLBACK_GENERATION_MODELS = [
   {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    note: "Google API key"
+    id: "openrouter/free",
+    name: "Trinity Large",
+    note: "Free"
   },
   {
-    id: "nvidia/nemotron-3-super-120b-a12b:free",
-    name: "Nemotron 3 Super (Free)",
-    note: "OpenRouter free"
-  },
-  {
-    id: "minimax/minimax-m2.5:free",
-    name: "MiniMax M2.5 (Free)",
-    note: "OpenRouter free"
-  },
-  {
-    id: "z-ai/glm-4.5-air:free",
-    name: "GLM 4.5 Air (Free)",
-    note: "OpenRouter free"
-  },
-  {
-    id: "stepfun/step-3.5-flash:free",
-    name: "StepFun 3.5 Flash (Free)",
-    note: "OpenRouter free"
+    id: "gpt-4o-mini",
+    name: "GPT-4o-mini",
+    note: "AICC"
   },
   {
     id: "hf/qwen2.5-coder-32b",
-    name: "HuggingFace - Qwen2.5 Coder 32B",
-    note: "HUGGINGFACE_API_KEY"
-  },
-  {
-    id: "cf/llama-3.1-8b",
-    name: "Cloudflare Workers AI - Llama 3.1 8B",
-    note: "CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID"
+    name: "Qwen2.5 Coder 32B",
+    note: "HuggingFace"
   },
   {
     id: "mistral/codestral-latest",
-    name: "Mistral Codestral Latest",
-    note: "MISTRAL_API_KEY"
+    name: "Mistral Codestral",
+    note: "Mistral"
+  },
+  {
+    id: "mistral/magistral-medium-latest",
+    name: "Mistral Magistral Medium",
+    note: "Mistral"
+  },
+  {
+    id: "mistral/mistral-small-latest",
+    name: "Mistral Small Latest",
+    note: "Mistral"
   },
   {
     id: "groq/llama-3.1-8b-instant",
-    name: "Groq - Llama 3.1 8B Instant",
-    note: "GROQ_API_KEY"
-  },
-  {
-    id: "cerebras/llama3.3-70b",
-    name: "Cerebras - Llama 3.3 70B",
-    note: "CEREBRAS_API_KEY"
+    name: "Llama 3.1 8B Instant",
+    note: "Groq"
   },
   {
     id: "sambanova/deepseek-r1",
-    name: "Sambanova - DeepSeek R1",
-    note: "SAMBANOVA_API_KEY"
-  },
-  {
-    id: "github/gpt-4o-mini",
-    name: "GitHub Models - GPT-4o-mini",
-    note: "GITHUB_MODELS_API_KEY"
+    name: "DeepSeek R1",
+    note: "Sambanova"
   }
 ];
+
+const getTokenBounds = (model) => ({
+  min: Number(model?.minMaxTokens) || 1024,
+  max: Number(model?.maxMaxTokens) || 16384,
+  def: Number(model?.defaultMaxTokens) || 8192
+});
 
 const promptSuggestions = [
   "Landing page for a SaaS startup with pricing, testimonials, and waitlist form",
@@ -77,6 +67,7 @@ const promptSuggestions = [
 
 function Generate() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { userData } = useSelector((state) => state.user);
 
   const [prompt, setPrompt] = useState("");
@@ -87,7 +78,9 @@ function Generate() {
   const [showProgress, setShowProgress] = useState(false);
   const [estimatedSeconds, setEstimatedSeconds] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
+  const [generationModels, setGenerationModels] = useState(FALLBACK_GENERATION_MODELS);
+  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+  const [maxTokens, setMaxTokens] = useState(8192);
 
   const progressIntervalRef = useRef(null);
   const progressTimeoutRef = useRef(null);
@@ -164,6 +157,43 @@ function Generate() {
     return () => clearProgressTimers();
   }, []);
 
+  useEffect(() => {
+    const loadModelConfig = async () => {
+      try {
+        const response = await axios.get(`${serverUrl}/api/ai/model-config`);
+        const models = response?.data?.models;
+        const apiCodingModels = models?.codingModels;
+
+        if (Array.isArray(apiCodingModels) && apiCodingModels.length > 0) {
+          setGenerationModels(apiCodingModels.map((model) => ({
+            id: model.id,
+            name: model.label,
+            note: model.providerNote,
+            defaultMaxTokens: model.defaultMaxTokens,
+            minMaxTokens: model.minMaxTokens,
+            maxMaxTokens: model.maxMaxTokens
+          })));
+
+          const defaultModel = models?.defaults?.codingModel || apiCodingModels[0].id;
+          setSelectedModel(defaultModel);
+          const defaultConfig = apiCodingModels.find((model) => model.id === defaultModel) || apiCodingModels[0];
+          setMaxTokens(getTokenBounds(defaultConfig).def);
+        }
+      } catch (error) {
+        console.error('Failed to load model config:', error);
+      }
+    };
+
+    loadModelConfig();
+  }, []);
+
+  useEffect(() => {
+    const selected = generationModels.find((model) => model.id === selectedModel);
+    if (!selected) return;
+    const bounds = getTokenBounds(selected);
+    setMaxTokens((prev) => Math.max(bounds.min, Math.min(bounds.max, prev || bounds.def)));
+  }, [selectedModel, generationModels]);
+
   const handleGenerateWebsite = async () => {
     let generatedWebsiteId = "";
 
@@ -182,11 +212,18 @@ function Generate() {
     try {
       const result = await axios.post(
         `${serverUrl}/api/website/generate`,
-        { prompt, model: selectedModel },
+        { prompt, model: selectedModel, maxTokens },
         { withCredentials: true }
       );
       generatedWebsiteId = result?.data?.websiteId || "";
       setSuccessMessage(result?.data?.message || "Website generated successfully.");
+
+      if (typeof result?.data?.Remaining_credits === 'number') {
+        dispatch(setUserData({
+          ...(userData || {}),
+          credits: result.data.Remaining_credits
+        }));
+      }
     } catch (error) {
       console.error(error);
       setErrorMessage(error?.response?.data?.message || "Failed to generate website. Please try again.");
@@ -204,7 +241,8 @@ function Generate() {
   };
 
   return (
-    <div className='relative min-h-screen overflow-hidden bg-[#05050b] text-white'>
+    <div className='relative isolate min-h-screen overflow-hidden bg-[#05050b] text-white'>
+      <PageBackgroundVideo src='/videos/image%203.mp4' overlayClass='bg-[#05050b]/58' videoClass='opacity-42' />
       <AnimatedBackground />
 
       <header className='sticky top-0 z-40 border-b border-white/10 bg-[#060611]/75 backdrop-blur-xl'>
@@ -216,7 +254,7 @@ function Generate() {
             >
               <ArrowLeft size={16} />
             </button>
-            <h1 className='text-lg font-semibold tracking-wide'>CROMP.AI Studio</h1>
+            <h1 className='text-lg font-semibold tracking-wide font-display'>CROMP.AI Studio</h1>
           </div>
 
           <div className='hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-zinc-200 sm:flex'>
@@ -237,7 +275,7 @@ function Generate() {
             <Sparkles size={12} />
             AI website generation workspace
           </p>
-          <h2 className='text-4xl font-semibold tracking-tight md:text-5xl'>Design your next website from one prompt</h2>
+          <h2 className='text-4xl font-semibold tracking-tight md:text-5xl font-display'>Design your next website from one prompt</h2>
           <p className='mt-3 max-w-3xl text-zinc-400'>
             Describe your idea, choose model quality, and generate a ready-to-edit website. The progress tracker shows estimated completion in real-time.
           </p>
@@ -252,7 +290,7 @@ function Generate() {
           >
             <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
               <div>
-                <h3 className='text-lg font-medium'>Describe your website</h3>
+                <h3 className='text-lg font-medium font-display'>Describe your website</h3>
                 <p className='text-sm text-zinc-400'>Add structure, sections, tone, and features for better results.</p>
               </div>
               <div className='rounded-lg border border-white/10 bg-[#0b0b12] px-3 py-2 text-xs text-zinc-300'>
@@ -263,18 +301,31 @@ function Generate() {
             <div className='rounded-2xl border border-white/10 bg-[#0b0b12] p-4'>
               <div className='mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                 <label className='text-xs text-zinc-400'>Choose generation model</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={isGenerating}
-                  className='h-10 w-full rounded-lg border border-white/10 bg-[#090910] px-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-cyan-500 sm:w-[320px] disabled:opacity-60'
-                >
-                  {generationModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
+                <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={isGenerating}
+                    className='h-10 w-full rounded-lg border border-white/10 bg-[#090910] px-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-cyan-500 sm:w-[320px] disabled:opacity-60'
+                  >
+                    {generationModels.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type='number'
+                    value={maxTokens}
+                    onChange={(e) => setMaxTokens(Number(e.target.value) || 0)}
+                    min={getTokenBounds(generationModels.find((model) => model.id === selectedModel)).min}
+                    max={getTokenBounds(generationModels.find((model) => model.id === selectedModel)).max}
+                    disabled={isGenerating}
+                    className='h-10 w-full rounded-lg border border-white/10 bg-[#090910] px-3 text-sm text-zinc-100 outline-none focus:ring-2 focus:ring-cyan-500 sm:w-[150px] disabled:opacity-60'
+                    placeholder='Max tokens'
+                    title='Max output tokens'
+                  />
+                </div>
               </div>
 
               <p className='mb-3 text-[11px] text-zinc-500'>
@@ -365,7 +416,7 @@ function Generate() {
             transition={{ duration: 0.45, delay: 0.12 }}
             className='rounded-3xl border border-white/10 bg-white/[0.04] p-5'
           >
-            <h3 className='text-sm font-semibold text-zinc-100'>Prompt ideas</h3>
+            <h3 className='text-sm font-semibold text-zinc-100 font-display'>Prompt ideas</h3>
             <p className='mt-1 text-xs text-zinc-400'>Tap one to prefill and customize quickly.</p>
 
             <div className='mt-4 space-y-3'>

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { serverUrl } from '../App';
+import { serverUrl } from '../config/api';
 import {
   Sparkles,
   Image as ImageIcon,
@@ -178,6 +178,32 @@ const AIStudio = () => {
     setTimeout(() => setMessage(''), 4000);
   };
 
+  const getErrorMessage = (error, fallbackText) => {
+    const data = error?.response?.data;
+    const parserErrorText = 'Unexpected non-whitespace character after JSON';
+
+    if (typeof data?.message === 'string' && data.message.trim()) {
+      if (data.message.includes(parserErrorText)) {
+        return 'AI provider returned malformed response. Please retry in a few seconds.';
+      }
+      return data.message;
+    }
+
+    if (typeof data === 'string' && data.trim()) {
+      if (data.includes(parserErrorText)) {
+        return 'AI provider returned malformed response. Please retry in a few seconds.';
+      }
+      return data.slice(0, 240);
+    }
+
+    const baseMessage = error?.message || fallbackText;
+    if (baseMessage.includes(parserErrorText)) {
+      return 'AI provider returned malformed response. Please retry in a few seconds.';
+    }
+
+    return baseMessage;
+  };
+
   // ============ CONTENT GENERATION ============
   const handleGenerateContent = async () => {
     if (!contentPrompt.trim()) {
@@ -203,10 +229,7 @@ const AIStudio = () => {
       setGeneratedContent(response.data.content);
       showMessage('✨ Content generated successfully!');
     } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate content',
-        'error'
-      );
+      showMessage(getErrorMessage(error, 'Failed to generate content'), 'error');
     } finally {
       setLoading(false);
       setContentStreaming(false);
@@ -235,10 +258,7 @@ const AIStudio = () => {
       setGeneratedImages(response.data.images || []);
       showMessage('🖼️ Images generated successfully!');
     } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate images',
-        'error'
-      );
+      showMessage(getErrorMessage(error, 'Failed to generate images'), 'error');
     } finally {
       setLoading(false);
     }
@@ -269,10 +289,7 @@ const AIStudio = () => {
       setResearchResults(response.data.research);
       showMessage('📚 Research generated successfully!');
     } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate research',
-        'error'
-      );
+      showMessage(getErrorMessage(error, 'Failed to generate research'), 'error');
     } finally {
       setLoading(false);
       setResearchStreaming(false);
@@ -303,10 +320,7 @@ const AIStudio = () => {
       setAdvancedContent(response.data.content);
       showMessage('👑 Premium content generated!');
     } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate advanced content',
-        'error'
-      );
+      showMessage(getErrorMessage(error, 'Failed to generate advanced content'), 'error');
     } finally {
       setLoading(false);
       setAdvancedStreaming(false);

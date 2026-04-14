@@ -14,7 +14,8 @@ import {
   Search,
   Sparkles
 } from 'lucide-react'
-import { serverUrl } from '../App'
+import { serverUrl } from '../config/api'
+import PageBackgroundVideo from '../components/PageBackgroundVideo'
 
 const Dashboard = () => {
   const { userData } = useSelector((state) => state.user)
@@ -152,7 +153,8 @@ const Dashboard = () => {
   }
 
   return (
-    <div className='relative min-h-screen bg-[#050505] text-white overflow-x-hidden'>
+    <div className='relative isolate min-h-screen bg-[#050505] text-white overflow-x-hidden'>
+      <PageBackgroundVideo src='/videos/image%202.mp4' overlayClass='bg-[#050505]/58' videoClass='opacity-42' />
       <AnimatedBackground />
 
       <div className='sticky top-0 z-40 backdrop-blur-xl bg-black/50 border-b border-white/10'>
@@ -177,7 +179,16 @@ const Dashboard = () => {
               whileTap={{ scale: 0.96 }}
             >
               <Sparkles size={14} />
-              AI Studio
+              Chat Studio
+            </motion.button>
+            <motion.button
+              className='px-4 py-2 rounded-lg bg-purple-500 hover:bg-purple-600 text-black text-sm font-semibold flex items-center gap-2'
+              onClick={() => navigate('/image-studio')}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <Sparkles size={14} />
+              Image Studio
             </motion.button>
             <motion.button
               className='px-4 py-2 rounded-lg bg-white text-black text-sm font-semibold flex items-center gap-2'
@@ -192,7 +203,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className='max-w-7xl mx-auto px-6 py-10'>
+      <div className='relative z-10 max-w-7xl mx-auto px-6 py-10'>
         <motion.section
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}

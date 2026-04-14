@@ -1,171 +1,325 @@
-import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
-import { serverUrl } from '../App';
+import React, { useEffect, useRef, useState } from 'react';
+import { serverUrl } from '../config/api';
 import {
   Sparkles,
-  Image as ImageIcon,
-  FileText,
-  Search,
-  Download,
   Copy,
+  Download,
+  Check,
   Loader,
-  AlertCircle,
-  CheckCircle,
-  Zap,
-  ArrowLeft,
+  Send,
+  Trash2,
+  StopCircle,
+  Menu,
+  X,
+  ImageIcon,
+  Code
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import PageBackgroundVideo from '../components/PageBackgroundVideo';
+
+void motion;
+
+const FALLBACK_CHAT_MODELS = [
+  { id: 'mistral/codestral-latest', label: 'Mistral Codestral' },
+  { id: 'mistral/magistral-medium-latest', label: 'Mistral Magistral Medium' },
+  { id: 'mistral/mistral-small-latest', label: 'Mistral Small Latest' }
+];
+
+const DEFAULT_CHAT_MODEL = 'mistral/magistral-medium-latest';
+
+const getModelTokenBounds = (model) => ({
+  min: Number(model?.minMaxTokens) || 512,
+  max: Number(model?.maxMaxTokens) || 8192,
+  def: Number(model?.defaultMaxTokens) || 4096
+});
+
+const getAssistantGreeting = (modelId, modelList = FALLBACK_CHAT_MODELS) => {
+  const modelLabel = modelList.find((model) => model.id === modelId)?.label || modelId;
+  return `Hello! I'm your AI assistant powered by ${modelLabel}. Ask me anything - I can help with coding, writing, analysis, questions, and more. How can I assist you today?`;
+};
+
+const MessageContent = ({ content, onCopy, onDownload }) => {
+  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({
+        type: 'text',
+        content: content.slice(lastIndex, match.index)
+      });
+    }
+    parts.push({
+      type: 'code',
+      language: match[1] || 'text',
+      content: match[2]
+    });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push({
+      type: 'text',
+      content: content.slice(lastIndex)
+    });
+  }
+
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content });
+  }
+
+  return (
+    <div className="space-y-4">
+      {parts.map((part, index) => {
+        if (part.type === 'code') {
+          return (
+            <div key={index} className="relative group rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between bg-[#1e1e2e] px-4 py-2 text-xs">
+                <span className="text-cyan-400 font-mono">{part.language}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onCopy(part.content)}
+                    className="p-1.5 rounded bg-white/10 hover:bg-white/20 transition"
+                    title="Copy code"
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <button
+                    onClick={() => onDownload(part.content, `code-${index}.${part.language === 'javascript' ? 'js' : 'txt'}`)}
+                    className="p-1.5 rounded bg-white/10 hover:bg-white/20 transition"
+                    title="Download code"
+                  >
+                    <Download size={14} />
+                  </button>
+                </div>
+              </div>
+              <pre className="bg-[#1e1e2e] p-4 overflow-x-auto">
+                <code className="text-sm font-mono text-gray-200">{part.content}</code>
+              </pre>
+            </div>
+          );
+        }
+
+        return (
+          <div key={index} className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">
+            {part.content.split('\n').map((line, i) => {
+              if (line.startsWith('# ') || line.startsWith('## ') || line.startsWith('### ')) {
+                const level = line.match(/^#+/)[0].length;
+                const Tag = level === 1 ? 'h2' : level === 2 ? 'h3' : 'h4';
+                return <Tag key={i} className={`font-bold ${level === 1 ? 'text-xl' : level === 2 ? 'text-lg' : 'text-base'} mb-2`}>{line.replace(/^#+\s*/, '')}</Tag>;
+              }
+              if (line.startsWith('- ') || line.startsWith('* ')) {
+                return <li key={i} className="ml-4 text-gray-300">{line.replace(/^[*-]\s*/, '')}</li>;
+              }
+              if (/^\d+\.\s/.test(line)) {
+                return <li key={i} className="ml-4 text-gray-300 list-decimal">{line.replace(/^\d+\.\s*/, '')}</li>;
+              }
+              if (line.startsWith('```')) {
+                return null;
+              }
+              return <p key={i} className="mb-1">{line}</p>;
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const AIStudio = () => {
   const navigate = useNavigate();
   const { userData } = useSelector((state) => state.user);
-  
-  const [activeTab, setActiveTab] = useState('content'); // content, image, research
+
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content: getAssistantGreeting(DEFAULT_CHAT_MODEL, FALLBACK_CHAT_MODELS),
+      timestamp: Date.now()
+    }
+  ]);
+  const [chatModels, setChatModels] = useState(FALLBACK_CHAT_MODELS);
+  const [selectedChatModel, setSelectedChatModel] = useState(DEFAULT_CHAT_MODEL);
+  const [chatMaxTokens, setChatMaxTokens] = useState(4096);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // success, error
-  const [copySuccess, setCopySuccess] = useState(false);
-
-  // Content Generation
-  const [contentType, setContentType] = useState('movie-description');
-  const [contentPrompt, setContentPrompt] = useState('');
-  const [generatedContent, setGeneratedContent] = useState('');
-  const [contentStreaming, setContentStreaming] = useState(false);
-
-  // Image Generation
-  const [imagePrompt, setImagePrompt] = useState('');
-  const [generatedImages, setGeneratedImages] = useState([]);
-  const [imageModel, setImageModel] = useState('text-to-image');
-
-  // Research Generation
-  const [researchQuery, setResearchQuery] = useState('');
-  const [researchType, setResearchType] = useState('movie-research');
-  const [researchResults, setResearchResults] = useState('');
-  const [researchStreaming, setResearchStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [abortController, setAbortController] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
+  
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    if (!userData) {
-      navigate('/auth');
-    }
+    if (!userData) navigate('/auth');
   }, [userData, navigate]);
 
-  const showMessage = (text, type = 'success') => {
-    setMessage(text);
-    setMessageType(type);
-    setTimeout(() => setMessage(''), 3000);
+  useEffect(() => {
+    const loadModelConfig = async () => {
+      try {
+        const response = await fetch(`${serverUrl}/api/ai/model-config`);
+        const data = await response.json();
+        const apiModels = data?.models?.chatModels;
+
+        if (Array.isArray(apiModels) && apiModels.length > 0) {
+          setChatModels(apiModels);
+          const defaultModel = data?.models?.defaults?.chatModel || apiModels[0].id;
+          setSelectedChatModel(defaultModel);
+          const selected = apiModels.find((model) => model.id === defaultModel) || apiModels[0];
+          setChatMaxTokens(getModelTokenBounds(selected).def);
+          setMessages([
+            {
+              role: 'assistant',
+              content: getAssistantGreeting(defaultModel, apiModels),
+              timestamp: Date.now()
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error('Failed to load model config:', error);
+      }
+    };
+
+    loadModelConfig();
+  }, []);
+
+  useEffect(() => {
+    const selectedModelConfig = chatModels.find((model) => model.id === selectedChatModel);
+    if (!selectedModelConfig) return;
+    const bounds = getModelTokenBounds(selectedModelConfig);
+    setChatMaxTokens((prev) => Math.max(bounds.min, Math.min(bounds.max, prev || bounds.def)));
+  }, [selectedChatModel, chatModels]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingContent]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // ============ CONTENT GENERATION ============
-  const handleGenerateContent = async () => {
-    if (!contentPrompt.trim()) {
-      showMessage('Please enter a prompt', 'error');
-      return;
-    }
+  const handleSendMessage = async () => {
+    const userMessage = input.trim();
+    if (!userMessage || loading) return;
+
+    const userMsg = {
+      role: 'user',
+      content: userMessage,
+      timestamp: Date.now()
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
+    setStreamingContent('');
+
+    const controller = new AbortController();
+    setAbortController(controller);
 
     try {
-      setLoading(true);
-      setContentStreaming(true);
-      setGeneratedContent('');
-
-      const response = await axios.post(
-        `${serverUrl}/api/ai/generate-content`,
-        {
-          prompt: contentPrompt,
-          type: contentType,
-          model: 'llama-2-70b'
+      const response = await fetch(`${serverUrl}/api/ai/chat`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        { withCredentials: true }
-      );
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are a helpful AI assistant. Provide clear, detailed responses. When providing code, use proper code blocks with syntax highlighting.' },
+            ...messages,
+            userMsg
+          ],
+          model: selectedChatModel,
+          maxTokens: chatMaxTokens
+        }),
+        signal: controller.signal
+      });
 
-      setGeneratedContent(response.data.content);
-      showMessage('Content generated successfully!');
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) {
+                accumulatedContent += data.content;
+                setStreamingContent(accumulatedContent);
+              } else if (data.done) {
+                break;
+              } else if (data.error) {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: accumulatedContent,
+        timestamp: Date.now()
+      }]);
+
     } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate content',
-        'error'
-      );
+      if (error.name === 'AbortError') {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: streamingContent || 'Response generation stopped.',
+          timestamp: Date.now()
+        }]);
+      } else {
+        console.error('Chat error:', error);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Error: ${error.message}`,
+          timestamp: Date.now()
+        }]);
+      }
     } finally {
       setLoading(false);
-      setContentStreaming(false);
+      setStreamingContent('');
+      setAbortController(null);
     }
   };
 
-  // ============ IMAGE GENERATION ============
-  const handleGenerateImage = async () => {
-    if (!imagePrompt.trim()) {
-      showMessage('Please enter an image description', 'error');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await axios.post(
-        `${serverUrl}/api/ai/generate-image`,
-        {
-          prompt: imagePrompt,
-          model: imageModel,
-          numberOfImages: 2
-        },
-        { withCredentials: true }
-      );
-
-      setGeneratedImages(response.data.images || []);
-      showMessage('Images generated successfully!');
-    } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate images',
-        'error'
-      );
-    } finally {
-      setLoading(false);
+  const handleStopGeneration = () => {
+    if (abortController) {
+      abortController.abort();
     }
   };
 
-  // ============ RESEARCH GENERATION ============
-  const handleGenerateResearch = async () => {
-    if (!researchQuery.trim()) {
-      showMessage('Please enter a research query', 'error');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setResearchStreaming(true);
-      setResearchResults('');
-
-      const response = await axios.post(
-        `${serverUrl}/api/ai/generate-research`,
-        {
-          query: researchQuery,
-          type: researchType,
-          model: 'mistral-7b'
-        },
-        { withCredentials: true }
-      );
-
-      setResearchResults(response.data.research);
-      showMessage('Research generated successfully!');
-    } catch (error) {
-      showMessage(
-        error.response?.data?.message || 'Failed to generate research',
-        'error'
-      );
-    } finally {
-      setLoading(false);
-      setResearchStreaming(false);
-    }
+  const handleClearChat = () => {
+    setMessages([{
+      role: 'assistant',
+      content: getAssistantGreeting(selectedChatModel, chatModels),
+      timestamp: Date.now()
+    }]);
   };
 
-  // ============ UTILITY FUNCTIONS ============
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  const downloadAsFile = (content, filename) => {
+  const downloadFile = (content, filename) => {
     const element = document.createElement('a');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
     element.setAttribute('download', filename);
@@ -175,379 +329,219 @@ const AIStudio = () => {
     document.body.removeChild(element);
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-gray-900/80 backdrop-blur-md border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition"
-          >
-            <ArrowLeft size={20} />
-            Back
-          </button>
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-yellow-400" size={28} />
-            <h1 className="text-2xl font-bold">AI Studio</h1>
-          </div>
-          <div className="w-16"></div>
-        </div>
-      </div>
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
-      {/* Message Alert */}
+  return (
+    <div className="relative isolate h-screen overflow-hidden bg-[#0a0a0f] text-white">
+      <PageBackgroundVideo src='/videos/image%204.mp4' overlayClass='bg-[#0a0a0f]/62' videoClass='opacity-40' />
+      <div className="relative z-10 flex h-screen">
+      {/* Mobile Sidebar Toggle */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white/10 rounded-lg"
+        onClick={() => setShowSidebar(!showSidebar)}
+      >
+        {showSidebar ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      {/* Sidebar */}
       <AnimatePresence>
-        {message && (
+        {(showSidebar || window.innerWidth >= 768) && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={`fixed top-20 left-1/2 transform -translate-x-1/2 p-4 rounded-lg flex items-center gap-2 z-40 ${
-              messageType === 'success'
-                ? 'bg-green-500/10 border border-green-500 text-green-300'
-                : 'bg-red-500/10 border border-red-500 text-red-300'
-            }`}
+            initial={{ x: -300, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -300, opacity: 0 }}
+            className={`fixed md:relative z-40 md:z-auto w-64 md:w-64 h-full bg-[#0f0f14] border-r border-white/5 flex flex-col ${showSidebar ? 'left-0' : '-left-64 md:left-0'}`}
           >
-            {messageType === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-            {message}
+            <div className="p-4 border-b border-white/5">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
+              >
+                <Menu size={18} />
+                Back to Dashboard
+              </button>
+            </div>
+
+            <div className="p-4">
+              <button
+                onClick={() => navigate('/image-studio')}
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition bg-white/5 text-gray-300 hover:bg-white/10`}
+              >
+                <ImageIcon size={16} />
+                Go to Image Studio
+              </button>
+            </div>
+
+            <div className="flex-1" />
+
+            <div className="p-4 border-t border-white/5">
+              <button
+                onClick={handleClearChat}
+                className="flex items-center gap-2 w-full py-2 px-3 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-white/5 transition"
+              >
+                <Trash2 size={16} />
+                Clear Chat
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Tab Navigation */}
-        <div className="flex gap-4 mb-8 flex-wrap">
-          {[
-            { id: 'content', label: 'Content Generator', icon: FileText },
-            { id: 'image', label: 'Image Generator', icon: ImageIcon },
-            { id: 'research', label: 'Research Generator', icon: Search }
-          ].map(({ id, label, icon: Icon }) => (
-            <motion.button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition ${
-                activeTab === id
-                  ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/50'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <div className="h-14 border-b border-white/5 bg-[#0f0f14]/80 backdrop-blur flex items-center justify-center px-4">
+          <div className="flex items-center gap-2 w-full max-w-4xl justify-between">
+            <div className="flex items-center gap-2">
+            <Sparkles className="text-cyan-400" size={20} />
+            <h1 className="text-lg font-semibold">AI Studio</h1>
+            <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded">Chat + Coding</span>
+            </div>
+            <select
+              value={selectedChatModel}
+              onChange={(e) => setSelectedChatModel(e.target.value)}
+              disabled={loading}
+              className="h-8 rounded-lg border border-white/10 bg-[#11121a] px-2 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-cyan-500"
             >
-              <Icon size={20} />
-              {label}
-            </motion.button>
-          ))}
+              {chatModels.map((model) => (
+                <option key={model.id} value={model.id}>{model.label}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              value={chatMaxTokens}
+              onChange={(e) => setChatMaxTokens(Number(e.target.value) || 0)}
+              disabled={loading}
+              min={getModelTokenBounds(chatModels.find((model) => model.id === selectedChatModel)).min}
+              max={getModelTokenBounds(chatModels.find((model) => model.id === selectedChatModel)).max}
+              className="h-8 w-24 rounded-lg border border-white/10 bg-[#11121a] px-2 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-cyan-500"
+              title="Max output tokens"
+            />
+          </div>
         </div>
 
-        {/* CONTENT GENERATION TAB */}
-        <AnimatePresence mode="wait">
-          {activeTab === 'content' && (
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          {messages.map((message, index) => (
             <motion.div
-              key="content"
-              initial={{ opacity: 0, y: 20 }}
+              key={index}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="space-y-6"
+              className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
             >
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Input Panel */}
-                <div className="lg:col-span-1 bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                    <Zap size={24} className="text-yellow-400" />
-                    Content Types
-                  </h2>
-
-                  <div className="space-y-2">
-                    {[
-                      { value: 'movie-description', label: '🎬 Movie Description' },
-                      { value: 'movie-review', label: '⭐ Movie Review' },
-                      { value: 'plot-summary', label: '📖 Plot Summary' },
-                      { value: 'character-analysis', label: '👤 Character Analysis' },
-                      { value: 'screenplay', label: '🎞️ Screenplay' },
-                      { value: 'movie-trivia', label: '🎯 Movie Trivia' }
-                    ].map(({ value, label }) => (
-                      <label key={value} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700 cursor-pointer transition">
-                        <input
-                          type="radio"
-                          name="contentType"
-                          value={value}
-                          checked={contentType === value}
-                          onChange={(e) => setContentType(e.target.value)}
-                          className="w-4 h-4"
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                message.role === 'user' ? 'bg-white text-black' : 'bg-gradient-to-br from-cyan-500 to-blue-500'
+              }`}>
+                {message.role === 'user' ? (
+                  <span className="text-sm font-bold">U</span>
+                ) : (
+                  <Sparkles size={14} />
+                )}
+              </div>
+              
+              <div className={`max-w-[85%] md:max-w-[75%] ${message.role === 'user' ? 'text-right' : ''}`}>
+                {message.role === 'user' ? (
+                  <div className="bg-white text-black px-4 py-3 rounded-2xl rounded-tr-sm text-sm">
+                    {message.content}
                   </div>
-
-                  <div className="mt-6">
-                    <label className="block text-sm font-semibold mb-2">Your Prompt</label>
-                    <textarea
-                      value={contentPrompt}
-                      onChange={(e) => setContentPrompt(e.target.value)}
-                      placeholder="Describe what you want to generate..."
-                      className="w-full h-40 bg-gray-700 rounded-lg p-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+                ) : (
+                  <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm p-4">
+                    <MessageContent 
+                      content={message.content} 
+                      onCopy={copyToClipboard}
+                      onDownload={downloadFile}
                     />
                   </div>
-
-                  <motion.button
-                    onClick={handleGenerateContent}
-                    disabled={loading}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="w-full mt-4 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition"
-                  >
-                    {loading ? <Loader size={20} className="animate-spin" /> : <Sparkles size={20} />}
-                    {loading ? 'Generating...' : 'Generate Content'}
-                  </motion.button>
-                </div>
-
-                {/* Output Panel */}
-                <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4">Generated Content</h2>
-                  {generatedContent ? (
-                    <div className="space-y-4">
-                      <div className="bg-gray-700 rounded-lg p-4 max-h-96 overflow-y-auto">
-                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed">{generatedContent}</p>
-                      </div>
-                      <div className="flex gap-3">
-                        <motion.button
-                          onClick={() => copyToClipboard(generatedContent)}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg transition"
-                        >
-                          {copySuccess ? <CheckCircle size={20} /> : <Copy size={20} />}
-                          {copySuccess ? 'Copied!' : 'Copy'}
-                        </motion.button>
-                        <motion.button
-                          onClick={() => downloadAsFile(generatedContent, 'content.txt')}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 py-2 rounded-lg transition"
-                        >
-                          <Download size={20} />
-                          Download
-                        </motion.button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="h-96 flex items-center justify-center text-gray-400">
-                      <p>Generated content will appear here</p>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </motion.div>
-          )}
+          ))}
 
-          {/* IMAGE GENERATION TAB */}
-          {activeTab === 'image' && (
+          {/* Streaming Content */}
+          {streamingContent && (
             <motion.div
-              key="image"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="space-y-6"
+              className="flex gap-4"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Input Panel */}
-                <div className="lg:col-span-1 bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                    <ImageIcon size={24} className="text-purple-400" />
-                    Image Settings
-                  </h2>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">Model</label>
-                      <select
-                        value={imageModel}
-                        onChange={(e) => setImageModel(e.target.value)}
-                        className="w-full bg-gray-700 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      >
-                        <option value="text-to-image">Stable Diffusion (High Quality)</option>
-                        <option value="flux-pro">FLUX Pro (Ultra Fast)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">Image Description</label>
-                      <textarea
-                        value={imagePrompt}
-                        onChange={(e) => setImagePrompt(e.target.value)}
-                        placeholder="Describe the image you want to generate..."
-                        className="w-full h-40 bg-gray-700 rounded-lg p-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                      />
-                    </div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                <Sparkles size={14} />
+              </div>
+              <div className="max-w-[85%] md:max-w-[75%]">
+                <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm p-4">
+                  <MessageContent 
+                    content={streamingContent} 
+                    onCopy={copyToClipboard}
+                    onDownload={downloadFile}
+                  />
+                  <div className="mt-2 flex items-center gap-2 text-xs text-cyan-400">
+                    <Loader size={12} className="animate-spin" />
+                    Generating...
                   </div>
-
-                  <motion.button
-                    onClick={handleGenerateImage}
-                    disabled={loading}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="w-full mt-4 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition"
-                  >
-                    {loading ? <Loader size={20} className="animate-spin" /> : <ImageIcon size={20} />}
-                    {loading ? 'Generating...' : 'Generate Images'}
-                  </motion.button>
-                </div>
-
-                {/* Output Panel */}
-                <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4">Generated Images</h2>
-                  {generatedImages.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {generatedImages.map((image, index) => (
-                        <motion.div
-                          key={index}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="relative group rounded-lg overflow-hidden bg-gray-700"
-                        >
-                          <img src={image} alt={`Generated ${index + 1}`} className="w-full h-64 object-cover" />
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            whileHover={{ opacity: 1 }}
-                            className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2"
-                          >
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => {
-                                const a = document.createElement('a');
-                                a.href = image;
-                                a.download = `image-${index + 1}.png`;
-                                a.click();
-                              }}
-                              className="bg-blue-500 hover:bg-blue-600 p-3 rounded-lg transition"
-                            >
-                              <Download size={20} />
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => window.open(image, '_blank')}
-                              className="bg-green-500 hover:bg-green-600 p-3 rounded-lg transition"
-                            >
-                              <ImageIcon size={20} />
-                            </motion.button>
-                          </motion.div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="h-96 flex items-center justify-center text-gray-400">
-                      <p>Generated images will appear here</p>
-                    </div>
-                  )}
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* RESEARCH GENERATION TAB */}
-          {activeTab === 'research' && (
-            <motion.div
-              key="research"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="space-y-6"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Input Panel */}
-                <div className="lg:col-span-1 bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                    <Search size={24} className="text-cyan-400" />
-                    Research Types
-                  </h2>
+          <div ref={messagesEndRef} />
+        </div>
 
-                  <div className="space-y-2 mb-6">
-                    {[
-                      { value: 'movie-research', label: '🎥 Movie Research' },
-                      { value: 'actor-biography', label: '👨‍🎬 Actor Biography' },
-                      { value: 'director-analysis', label: '🎬 Director Analysis' },
-                      { value: 'genre-analysis', label: '📚 Genre Analysis' },
-                      { value: 'market-analysis', label: '📊 Box Office Analysis' },
-                      { value: 'industry-trends', label: '📈 Industry Trends' }
-                    ].map(({ value, label }) => (
-                      <label key={value} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700 cursor-pointer transition">
-                        <input
-                          type="radio"
-                          name="researchType"
-                          value={value}
-                          checked={researchType === value}
-                          onChange={(e) => setResearchType(e.target.value)}
-                          className="w-4 h-4"
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Research Query</label>
-                    <textarea
-                      value={researchQuery}
-                      onChange={(e) => setResearchQuery(e.target.value)}
-                      placeholder="Enter your research query..."
-                      className="w-full h-40 bg-gray-700 rounded-lg p-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
-                    />
-                  </div>
-
-                  <motion.button
-                    onClick={handleGenerateResearch}
-                    disabled={loading}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="w-full mt-4 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition"
+        {/* Input Area */}
+        <div className="p-4 border-t border-white/5 bg-[#0f0f14]">
+          <div className="max-w-3xl mx-auto">
+            <div className="relative">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Message AI Studio..."
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 pr-24 text-sm text-white placeholder-gray-500 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 resize-none"
+                rows={1}
+                style={{ minHeight: '52px', maxHeight: '200px' }}
+                disabled={loading}
+              />
+              
+              <div className="absolute right-2 bottom-2 flex gap-2">
+                {loading ? (
+                  <button
+                    onClick={handleStopGeneration}
+                    className="p-2.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition"
+                    title="Stop generating"
                   >
-                    {loading ? <Loader size={20} className="animate-spin" /> : <Search size={20} />}
-                    {loading ? 'Researching...' : 'Generate Research'}
-                  </motion.button>
-                </div>
-
-                {/* Output Panel */}
-                <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h2 className="text-xl font-bold mb-4">Research Results</h2>
-                  {researchResults ? (
-                    <div className="space-y-4">
-                      <div className="bg-gray-700 rounded-lg p-4 max-h-96 overflow-y-auto">
-                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-sm">{researchResults}</p>
-                      </div>
-                      <div className="flex gap-3">
-                        <motion.button
-                          onClick={() => copyToClipboard(researchResults)}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 py-2 rounded-lg transition"
-                        >
-                          {copySuccess ? <CheckCircle size={20} /> : <Copy size={20} />}
-                          {copySuccess ? 'Copied!' : 'Copy'}
-                        </motion.button>
-                        <motion.button
-                          onClick={() => downloadAsFile(researchResults, 'research.txt')}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 py-2 rounded-lg transition"
-                        >
-                          <Download size={20} />
-                          Download
-                        </motion.button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="h-96 flex items-center justify-center text-gray-400">
-                      <p>Research results will appear here</p>
-                    </div>
-                  )}
-                </div>
+                    <StopCircle size={18} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!input.trim()}
+                    className="p-2.5 rounded-lg bg-cyan-500 text-black disabled:opacity-50 disabled:cursor-not-allowed hover:bg-cyan-400 transition"
+                  >
+                    <Send size={18} />
+                  </button>
+                )}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+            
+            <p className="text-center text-xs text-gray-600 mt-2">
+              AI can make mistakes. Please verify important information.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Overlay for mobile sidebar */}
+      {showSidebar && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
       </div>
     </div>
   );

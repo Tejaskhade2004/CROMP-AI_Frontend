@@ -1,16 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { serverUrl } from '../App';
+import { serverUrl } from '../config/api';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { ArrowLeft, Code, ExternalLink, Eye, FileCode, LucideMonitor, MessageCircle, Rocket, Send, X } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { motion } from 'motion/react';
+import { setUserData } from '../redux/userSlice';
+
+const FALLBACK_CODING_MODELS = [
+    { id: 'gpt-4o-mini', label: 'AICC GPT-4o-mini', providerNote: 'AICC', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'hf/qwen2.5-coder-32b', label: 'HuggingFace Qwen2.5 Coder 32B', providerNote: 'HuggingFace', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'mistral/codestral-latest', label: 'Mistral Codestral', providerNote: 'Mistral', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'mistral/magistral-medium-latest', label: 'Mistral Magistral Medium', providerNote: 'Mistral', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'mistral/mistral-small-latest', label: 'Mistral Small Latest', providerNote: 'Mistral', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'groq/llama-3.1-8b-instant', label: 'Groq Llama 3.1 8B Instant', providerNote: 'Groq', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'sambanova/deepseek-r1', label: 'Sambanova DeepSeek R1', providerNote: 'Sambanova', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 }
+];
+
+const getTokenBounds = (model) => ({
+    min: Number(model?.minMaxTokens) || 1024,
+    max: Number(model?.maxMaxTokens) || 16384,
+    def: Number(model?.defaultMaxTokens) || 8192
+});
 
 
 function WebsiteEditor() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const dispatch = useDispatch();
+    const { userData } = useSelector((state) => state.user);
     const [website, setWebsite] = useState(null);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
@@ -25,6 +45,9 @@ function WebsiteEditor() {
     const [deployMessage, setDeployMessage] = useState("");
     const [deployError, setDeployError] = useState("");
     const [mobileView, setMobileView] = useState('preview');
+    const [codingModels, setCodingModels] = useState(FALLBACK_CODING_MODELS);
+    const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+    const [maxTokens, setMaxTokens] = useState(8192);
 
     const thinkingStep = [
         "Analyzing the prompt ...",
@@ -58,7 +81,7 @@ function WebsiteEditor() {
         try {
             const result = await axios.post(
                 `${serverUrl}/api/website/update/${id}`,
-                { prompt: userPrompt },
+                { prompt: userPrompt, model: selectedModel, maxTokens },
                 { withCredentials: true }
             );
 
@@ -78,6 +101,13 @@ function WebsiteEditor() {
             });
 
             setCode(result.data.latestCode);
+
+            if (typeof result?.data?.Remaining_credits === 'number') {
+                dispatch(setUserData({
+                    ...(userData || {}),
+                    credits: result.data.Remaining_credits
+                }));
+            }
 
             // ✅ clear input (important UX fix)
 
@@ -174,6 +204,35 @@ function WebsiteEditor() {
     }, [updateLoading]);
 
     // 🔥 Fetch Website
+    useEffect(() => {
+        const loadModelConfig = async () => {
+            try {
+                const response = await axios.get(`${serverUrl}/api/ai/model-config`);
+                const models = response?.data?.models;
+                const apiCodingModels = models?.codingModels;
+
+                if (Array.isArray(apiCodingModels) && apiCodingModels.length > 0) {
+                    setCodingModels(apiCodingModels);
+                    const defaultModel = models?.defaults?.codingModel || apiCodingModels[0].id;
+                    setSelectedModel(defaultModel);
+                    const selected = apiCodingModels.find((model) => model.id === defaultModel) || apiCodingModels[0];
+                    setMaxTokens(getTokenBounds(selected).def);
+                }
+            } catch (error) {
+                console.error('Failed to load model config:', error);
+            }
+        };
+
+        loadModelConfig();
+    }, []);
+
+    useEffect(() => {
+        const selected = codingModels.find((model) => model.id === selectedModel);
+        if (!selected) return;
+        const bounds = getTokenBounds(selected);
+        setMaxTokens((prev) => Math.max(bounds.min, Math.min(bounds.max, prev || bounds.def)));
+    }, [selectedModel, codingModels]);
+
     useEffect(() => {
         const handlegetWebsite = async () => {
             setLoading(true);
@@ -281,6 +340,26 @@ function WebsiteEditor() {
                     <div className='h-14 px-4 flex justify-between items-center border-b border-white/10 bg-black/80'>
                         <span className='text-xs text-zinc-400'>Live Preview</span>
                         <div className='flex gap-3 items-center'>
+                            <select
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                disabled={updateLoading}
+                                className='h-8 rounded-lg border border-white/10 bg-[#1a1a1a] px-2 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-cyan-500'
+                            >
+                                {codingModels.map((model) => (
+                                    <option key={model.id} value={model.id}>{model.label}</option>
+                                ))}
+                            </select>
+                            <input
+                                type='number'
+                                value={maxTokens}
+                                onChange={(e) => setMaxTokens(Number(e.target.value) || 0)}
+                                disabled={updateLoading}
+                                min={getTokenBounds(codingModels.find((model) => model.id === selectedModel)).min}
+                                max={getTokenBounds(codingModels.find((model) => model.id === selectedModel)).max}
+                                className='h-8 w-24 rounded-lg border border-white/10 bg-[#1a1a1a] px-2 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-cyan-500'
+                                title='Max output tokens'
+                            />
                             <button
                                 className='flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-sm font-semibold hover:scale-105 transition disabled:opacity-60 disabled:cursor-not-allowed'
                                 onClick={handleDeployWebsite}
@@ -323,7 +402,11 @@ function WebsiteEditor() {
                     )}
 
                     <div className='flex-1 min-h-0'>
-                        <iframe srcDoc={code} className='w-full h-full bg-white' />
+                        <iframe
+                            srcDoc={code}
+                            sandbox='allow-scripts allow-forms allow-modals allow-popups'
+                            className='w-full h-full bg-white'
+                        />
                     </div>
                 </div>
             </div>
@@ -348,7 +431,28 @@ function WebsiteEditor() {
                 {mobileView === 'preview' && (
                     <div className='flex flex-col h-full'>
                         <div className='h-14 px-4 flex justify-between items-center border-b border-white/10 bg-black/80'>
-                            <span className='text-xs text-zinc-400'>Live Preview</span>
+                            <div className='flex items-center gap-2'>
+                                <span className='text-xs text-zinc-400'>Live Preview</span>
+                                <select
+                                    value={selectedModel}
+                                    onChange={(e) => setSelectedModel(e.target.value)}
+                                    disabled={updateLoading}
+                                    className='h-6 rounded border border-white/10 bg-[#1a1a1a] px-1 text-[10px] text-zinc-200 outline-none'
+                                >
+                                    {codingModels.map((model) => (
+                                        <option key={model.id} value={model.id}>{model.label}</option>
+                                    ))}
+                                </select>
+                                <input
+                                    type='number'
+                                    value={maxTokens}
+                                    onChange={(e) => setMaxTokens(Number(e.target.value) || 0)}
+                                    disabled={updateLoading}
+                                    min={getTokenBounds(codingModels.find((model) => model.id === selectedModel)).min}
+                                    max={getTokenBounds(codingModels.find((model) => model.id === selectedModel)).max}
+                                    className='h-6 w-20 rounded border border-white/10 bg-[#1a1a1a] px-1 text-[10px] text-zinc-200 outline-none'
+                                />
+                            </div>
                             <button className='p-2 hover:bg-white/5 rounded' onClick={() => setShowFullPreview(true)}>
                                 <LucideMonitor size={18} />
                             </button>
@@ -365,7 +469,11 @@ function WebsiteEditor() {
                             </div>
                         )}
                         <div className='flex-1 min-h-0'>
-                            <iframe srcDoc={code} className='w-full h-full bg-white' />
+                            <iframe
+                                srcDoc={code}
+                                sandbox='allow-scripts allow-forms allow-modals allow-popups'
+                                className='w-full h-full bg-white'
+                            />
                         </div>
                     </div>
                 )}
@@ -433,7 +541,11 @@ function WebsiteEditor() {
                         <button onClick={() => setShowFullPreview(false)}><X size={18} /></button>
 
                     </div>
-                    <iframe srcDoc={code} className='w-full flex-1 bg-white' />
+                    <iframe
+                        srcDoc={code}
+                        sandbox='allow-scripts allow-forms allow-modals allow-popups'
+                        className='w-full flex-1 bg-white'
+                    />
                 </motion.div>)}
             </AnimatePresence>
         </div>

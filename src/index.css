@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+:root {
+  --font-primary: 'Outfit', sans-serif;
+  --font-secondary: 'Space Grotesk', sans-serif;
+}
+
+* {
+  font-family: var(--font-primary);
+}
+
+.font-display {
+  font-family: var(--font-secondary);
+}
+
+body {
+  background-color: #050505;
+  color: #ffffff;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-secondary);
+}
+
+button, select, input, textarea {
+  font-family: var(--font-primary);
+}

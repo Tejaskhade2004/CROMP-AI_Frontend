@@ -2,7 +2,7 @@ import axios from 'axios';
 import React, { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setUserData } from '../redux/userSlice';
-import { serverUrl } from '../App';
+import { serverUrl } from '../config/api';
 
 function useGetCurrent() {
     const dispatch = useDispatch()
@@ -18,11 +18,6 @@ function useGetCurrent() {
                 
                 // Expected when user is not authenticated
                 if (status === 401 || status === 400) {
-                    console.log('User not authenticated:', {
-                        status,
-                        code,
-                        message: error.response?.data?.message
-                    });
                     // Clear any stale user data
                     dispatch(setUserData(null))
                 } else {
