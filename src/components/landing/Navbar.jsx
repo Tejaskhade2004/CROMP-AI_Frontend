@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Zap, ChevronRight, Code2 } from 'lucide-react';
+import { Menu, X, ChevronRight, Code2 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 
 const navLinks = [
@@ -70,11 +70,15 @@ function Navbar() {
             aria-label="Go to home"
           >
             <motion.div
-              whileHover={{ rotate: 15, scale: 1.1 }}
+              whileHover={{ scale: 1.1 }}
               transition={{ duration: 0.2 }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600"
+              className="flex h-10 w-10 items-center justify-center"
             >
-              <Zap className="h-5 w-5 text-white" />
+              <img 
+                src="/client/logo/LOGO.png" 
+                alt="CROMP.AI Logo" 
+                className="h-10 w-10 object-contain drop-shadow-lg"
+              />
             </motion.div>
             <span className="text-lg font-bold tracking-tight">CROMP.AI</span>
           </button>

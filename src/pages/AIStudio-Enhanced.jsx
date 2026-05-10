@@ -204,6 +204,17 @@ const AIStudio = () => {
     return baseMessage;
   };
 
+  const stripMarkdownForDisplay = (text = '') => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/__(.*?)__/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/_(.*?)_/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/~~(.*?)~~/g, '$1')
+      .trimEnd();
+  };
+
   // ============ CONTENT GENERATION ============
   const handleGenerateContent = async () => {
     if (!contentPrompt.trim()) {
@@ -627,12 +638,12 @@ const AIStudio = () => {
                         initial={{ y: 20 }}
                         animate={{ y: 0 }}
                       >
-                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-justify font-light">{generatedContent}</p>
+                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-justify font-light">{stripMarkdownForDisplay(generatedContent)}</p>
                       </motion.div>
                       
                       <div className="flex gap-3 flex-wrap">
                         <motion.button
-                          onClick={() => copyToClipboard(generatedContent)}
+                          onClick={() => copyToClipboard(stripMarkdownForDisplay(generatedContent))}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 py-3 rounded-lg transition font-semibold shadow-md"
@@ -641,7 +652,7 @@ const AIStudio = () => {
                           {copySuccess ? 'Copied!' : 'Copy'}
                         </motion.button>
                         <motion.button
-                          onClick={() => downloadAsFile(generatedContent, 'content.txt')}
+                          onClick={() => downloadAsFile(stripMarkdownForDisplay(generatedContent), 'content.txt')}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 py-3 rounded-lg transition font-semibold shadow-md"
@@ -933,12 +944,12 @@ const AIStudio = () => {
                         initial={{ y: 20 }}
                         animate={{ y: 0 }}
                       >
-                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-justify font-light">{researchResults}</p>
+                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-justify font-light">{stripMarkdownForDisplay(researchResults)}</p>
                       </motion.div>
 
                       <div className="flex gap-3 flex-wrap">
                         <motion.button
-                          onClick={() => copyToClipboard(researchResults)}
+                          onClick={() => copyToClipboard(stripMarkdownForDisplay(researchResults))}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 py-3 rounded-lg transition font-semibold shadow-md"
@@ -947,7 +958,7 @@ const AIStudio = () => {
                           {copySuccess ? 'Copied!' : 'Copy'}
                         </motion.button>
                         <motion.button
-                          onClick={() => downloadAsFile(researchResults, 'research.txt')}
+                          onClick={() => downloadAsFile(stripMarkdownForDisplay(researchResults), 'research.txt')}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 py-3 rounded-lg transition font-semibold shadow-md"
@@ -1103,12 +1114,12 @@ const AIStudio = () => {
                         initial={{ y: 20 }}
                         animate={{ y: 0 }}
                       >
-                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-justify font-light">{advancedContent}</p>
+                        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-justify font-light">{stripMarkdownForDisplay(advancedContent)}</p>
                       </motion.div>
 
                       <div className="flex gap-3 flex-wrap">
                         <motion.button
-                          onClick={() => copyToClipboard(advancedContent)}
+                          onClick={() => copyToClipboard(stripMarkdownForDisplay(advancedContent))}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 py-3 rounded-lg transition font-semibold shadow-md"
@@ -1117,7 +1128,7 @@ const AIStudio = () => {
                           {copySuccess ? 'Copied!' : 'Copy'}
                         </motion.button>
                         <motion.button
-                          onClick={() => downloadAsFile(advancedContent, 'premium-content.txt')}
+                          onClick={() => downloadAsFile(stripMarkdownForDisplay(advancedContent), 'premium-content.txt')}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 py-3 rounded-lg transition font-semibold shadow-md"

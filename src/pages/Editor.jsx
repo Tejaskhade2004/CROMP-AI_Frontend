@@ -10,13 +10,18 @@ import { motion } from 'motion/react';
 import { setUserData } from '../redux/userSlice';
 
 const FALLBACK_CODING_MODELS = [
+    { id: 'auto', label: 'Auto (Best from CROMP Config)', providerNote: 'Auto', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'openrouter/free', label: 'OpenRouter Free (Auto)', providerNote: 'Free', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free', providerNote: 'OpenRouter', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
     { id: 'gpt-4o-mini', label: 'AICC GPT-4o-mini', providerNote: 'AICC', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
     { id: 'hf/qwen2.5-coder-32b', label: 'HuggingFace Qwen2.5 Coder 32B', providerNote: 'HuggingFace', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
     { id: 'mistral/codestral-latest', label: 'Mistral Codestral', providerNote: 'Mistral', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
     { id: 'mistral/magistral-medium-latest', label: 'Mistral Magistral Medium', providerNote: 'Mistral', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
     { id: 'mistral/mistral-small-latest', label: 'Mistral Small Latest', providerNote: 'Mistral', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
     { id: 'groq/llama-3.1-8b-instant', label: 'Groq Llama 3.1 8B Instant', providerNote: 'Groq', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
-    { id: 'sambanova/deepseek-r1', label: 'Sambanova DeepSeek R1', providerNote: 'Sambanova', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 }
+    { id: 'sambanova/deepseek-r1', label: 'Sambanova DeepSeek R1', providerNote: 'Sambanova', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'gemini/gemma-4-26b-a4b-it', label: 'Google Gemma-4 26B', providerNote: 'Google', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 },
+    { id: 'gemini/gemini-2.5-flash', label: 'Google Gemini 2.5 Flash', providerNote: 'Google', defaultMaxTokens: 8192, minMaxTokens: 1024, maxMaxTokens: 16384 }
 ];
 
 const getTokenBounds = (model) => ({
@@ -46,7 +51,7 @@ function WebsiteEditor() {
     const [deployError, setDeployError] = useState("");
     const [mobileView, setMobileView] = useState('preview');
     const [codingModels, setCodingModels] = useState(FALLBACK_CODING_MODELS);
-    const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+    const [selectedModel, setSelectedModel] = useState("auto");
     const [maxTokens, setMaxTokens] = useState(8192);
 
     const thinkingStep = [

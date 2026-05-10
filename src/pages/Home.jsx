@@ -139,10 +139,10 @@ const clientLogos = [
   "Vercel", "Stripe", "Linear", "Supabase", "Railway", "Resend"
 ];
 
-function useTypewriter(phrases, typingSpeed = 80, deletingSpeed = 40, pauseDuration = 2000) {
+function useModernCarousel(phrases, pauseDuration = 3000) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [currentText, setCurrentText] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [nextIndex, setNextIndex] = useState(1);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const mountedRef = useRef(true);
 
@@ -152,43 +152,28 @@ function useTypewriter(phrases, typingSpeed = 80, deletingSpeed = 40, pauseDurat
   }, []);
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      setCurrentText(phrases[0]);
-      return;
-    }
+    if (prefersReducedMotion) return;
 
-    const currentPhrase = phrases[currentIndex];
-    let timeout;
-
-    if (!isDeleting) {
-      if (currentText.length < currentPhrase.length) {
-        timeout = setTimeout(() => {
+    const interval = setInterval(() => {
+      if (mountedRef.current) {
+        setIsTransitioning(true);
+        setTimeout(() => {
           if (mountedRef.current) {
-            setCurrentText(currentPhrase.slice(0, currentText.length + 1));
+            setCurrentIndex((prev) => (prev + 1) % phrases.length);
+            setNextIndex((prev) => (prev + 1) % phrases.length);
+            setIsTransitioning(false);
           }
-        }, typingSpeed);
-      } else {
-        timeout = setTimeout(() => {
-          if (mountedRef.current) setIsDeleting(true);
-        }, pauseDuration);
+        }, 400);
       }
-    } else {
-      if (currentText.length > 0) {
-        timeout = setTimeout(() => {
-          if (mountedRef.current) {
-            setCurrentText(currentText.slice(0, -1));
-          }
-        }, deletingSpeed);
-      } else {
-        setIsDeleting(false);
-        setCurrentIndex((prev) => (prev + 1) % phrases.length);
-      }
-    }
+    }, pauseDuration);
 
-    return () => clearTimeout(timeout);
-  }, [currentText, isDeleting, currentIndex, phrases, typingSpeed, deletingSpeed, pauseDuration, prefersReducedMotion]);
+    return () => clearInterval(interval);
+  }, [phrases, pauseDuration, prefersReducedMotion]);
 
-  return currentText;
+  return { 
+    currentPhrase: phrases[currentIndex],
+    isTransitioning
+  };
 }
 
 function useCountUp(end, duration = 2000, startOnView = false) {
@@ -541,7 +526,7 @@ function HyperRealisticDome({ prefersReducedMotion }) {
   );
 }
 
-function HeroSection({ userData, navigate, typedText, prefersReducedMotion }) {
+function HeroSection({ userData, navigate, currentPhrase, isTransitioning, prefersReducedMotion }) {
   const videoRef = useRef(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [showFallback, setShowFallback] = useState(false);
@@ -627,19 +612,25 @@ function HeroSection({ userData, navigate, typedText, prefersReducedMotion }) {
             <p className="mb-4 text-lg text-zinc-300 sm:text-xl">
               End-to-end autonomous agents that plan, code, test, and deploy.
             </p>
-            <div className="h-8 overflow-hidden">
+            <div className="h-12 overflow-hidden flex justify-center">
               <AnimatePresence mode="wait">
-                <motion.p
-                  key={typedText}
-                  initial={{ opacity: 0, y: 15 }}
+                <motion.div
+                  key={currentPhrase}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-lg font-medium text-blue-300 sm:text-xl"
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                  className="flex items-center justify-center gap-3"
                 >
-                  {typedText}
-                  <span className="ml-1 inline-block animate-pulse text-blue-400">|</span>
-                </motion.p>
+                  <motion.div 
+                    className="flex-shrink-0 h-3 w-3 rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 flex-none"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                  <span className="text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-blue-300 sm:text-xl whitespace-nowrap">
+                    {currentPhrase}
+                  </span>
+                </motion.div>
               </AnimatePresence>
             </div>
           </div>
@@ -1396,9 +1387,11 @@ function Footer() {
         
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
-              <Zap className="h-4 w-4 text-white" />
-            </div>
+            <img 
+              src="/images/cromp-logo.svg" 
+              alt="CROMP.AI Logo" 
+              className="h-8 w-8 object-contain drop-shadow-lg"
+            />
             <span className="font-semibold">CROMP.AI</span>
           </div>
           <p className="text-sm text-zinc-500">
@@ -1483,11 +1476,15 @@ function Navbar({ userData, navigate, prefersReducedMotion }) {
             aria-label="Go to home"
           >
             <motion.div
-              whileHover={{ rotate: 15, scale: 1.1 }}
+              whileHover={{ scale: 1.1 }}
               transition={{ duration: 0.2 }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600"
+              className="flex h-10 w-10 items-center justify-center"
             >
-              <Zap className="h-5 w-5 text-white" />
+              <img 
+                src="/images/cromp-logo.svg" 
+                alt="CROMP.AI Logo" 
+                className="h-10 w-10 object-contain drop-shadow-lg"
+              />
             </motion.div>
             <span className="text-lg font-bold tracking-tight">CROMP.AI</span>
           </button>
@@ -1621,7 +1618,7 @@ function Home() {
   const navigate = useNavigate();
   const prefersReducedMotion = useReducedMotion();
   const { userData } = useSelector((state) => state.user);
-  const typedText = useTypewriter(typedPhrases);
+  const { currentPhrase, isTransitioning } = useModernCarousel(typedPhrases);
   const dispatch = useDispatch();
   
   return (
@@ -1634,7 +1631,8 @@ function Home() {
         <HeroSection 
           userData={userData} 
           navigate={navigate} 
-          typedText={typedText}
+          currentPhrase={currentPhrase}
+          isTransitioning={isTransitioning}
           prefersReducedMotion={prefersReducedMotion}
         />
         <SocialProofSection />

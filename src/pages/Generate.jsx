@@ -12,9 +12,19 @@ void motion;
 
 const FALLBACK_GENERATION_MODELS = [
   {
+    id: "auto",
+    name: "auto",
+    note: "Auto"
+  },
+  {
     id: "openrouter/free",
-    name: "Trinity Large",
+    name: "openrouter:free",
     note: "Free"
+  },
+  {
+    id: "openai/gpt-oss-120b:free",
+    name: "GPT-OSS 120B Free",
+    note: "OpenRouter"
   },
   {
     id: "gpt-4o-mini",
@@ -50,6 +60,16 @@ const FALLBACK_GENERATION_MODELS = [
     id: "sambanova/deepseek-r1",
     name: "DeepSeek R1",
     note: "Sambanova"
+  },
+  {
+    id: "gemini/gemma-4-26b-a4b-it",
+    name: "Google Gemma-4 26B",
+    note: "Google"
+  },
+  {
+    id: "gemini/gemini-2.5-flash",
+    name: "Google Gemini 2.5 Flash",
+    note: "Google"
   }
 ];
 
@@ -79,7 +99,7 @@ function Generate() {
   const [estimatedSeconds, setEstimatedSeconds] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [generationModels, setGenerationModels] = useState(FALLBACK_GENERATION_MODELS);
-  const [selectedModel, setSelectedModel] = useState("gpt-4o-mini");
+  const [selectedModel, setSelectedModel] = useState("auto");
   const [maxTokens, setMaxTokens] = useState(8192);
 
   const progressIntervalRef = useRef(null);

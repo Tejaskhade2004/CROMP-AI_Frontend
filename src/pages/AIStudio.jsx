@@ -22,12 +22,16 @@ import PageBackgroundVideo from '../components/PageBackgroundVideo';
 void motion;
 
 const FALLBACK_CHAT_MODELS = [
+  { id: 'auto', label: 'Auto (Best from CROMP Config)' },
+  { id: 'openrouter/free', label: 'OpenRouter Free (Auto)' },
+  { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B Free' },
   { id: 'mistral/codestral-latest', label: 'Mistral Codestral' },
   { id: 'mistral/magistral-medium-latest', label: 'Mistral Magistral Medium' },
-  { id: 'mistral/mistral-small-latest', label: 'Mistral Small Latest' }
+  { id: 'mistral/mistral-small-latest', label: 'Mistral Small Latest' },
+  { id: 'gemini/gemma-4-26b-a4b-it', label: 'Google Gemma-4 26B' }
 ];
 
-const DEFAULT_CHAT_MODEL = 'mistral/magistral-medium-latest';
+const DEFAULT_CHAT_MODEL = 'auto';
 
 const getModelTokenBounds = (model) => ({
   min: Number(model?.minMaxTokens) || 512,
@@ -38,6 +42,17 @@ const getModelTokenBounds = (model) => ({
 const getAssistantGreeting = (modelId, modelList = FALLBACK_CHAT_MODELS) => {
   const modelLabel = modelList.find((model) => model.id === modelId)?.label || modelId;
   return `Hello! I'm your AI assistant powered by ${modelLabel}. Ask me anything - I can help with coding, writing, analysis, questions, and more. How can I assist you today?`;
+};
+
+const stripMarkdownInline = (text = '') => {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/~~(.*?)~~/g, '$1')
+    .trimEnd();
 };
 
 const MessageContent = ({ content, onCopy, onDownload }) => {
@@ -110,18 +125,18 @@ const MessageContent = ({ content, onCopy, onDownload }) => {
               if (line.startsWith('# ') || line.startsWith('## ') || line.startsWith('### ')) {
                 const level = line.match(/^#+/)[0].length;
                 const Tag = level === 1 ? 'h2' : level === 2 ? 'h3' : 'h4';
-                return <Tag key={i} className={`font-bold ${level === 1 ? 'text-xl' : level === 2 ? 'text-lg' : 'text-base'} mb-2`}>{line.replace(/^#+\s*/, '')}</Tag>;
+                return <Tag key={i} className={`font-bold ${level === 1 ? 'text-xl' : level === 2 ? 'text-lg' : 'text-base'} mb-2`}>{stripMarkdownInline(line.replace(/^#+\s*/, ''))}</Tag>;
               }
               if (line.startsWith('- ') || line.startsWith('* ')) {
-                return <li key={i} className="ml-4 text-gray-300">{line.replace(/^[*-]\s*/, '')}</li>;
+                return <li key={i} className="ml-4 text-gray-300">{stripMarkdownInline(line.replace(/^[*-]\s*/, ''))}</li>;
               }
               if (/^\d+\.\s/.test(line)) {
-                return <li key={i} className="ml-4 text-gray-300 list-decimal">{line.replace(/^\d+\.\s*/, '')}</li>;
+                return <li key={i} className="ml-4 text-gray-300 list-decimal">{stripMarkdownInline(line.replace(/^\d+\.\s*/, ''))}</li>;
               }
               if (line.startsWith('```')) {
                 return null;
               }
-              return <p key={i} className="mb-1">{line}</p>;
+              return <p key={i} className="mb-1">{stripMarkdownInline(line)}</p>;
             })}
           </div>
         );
@@ -229,7 +244,7 @@ const AIStudio = () => {
         },
         body: JSON.stringify({
           messages: [
-            { role: 'system', content: 'You are a helpful AI assistant. Provide clear, detailed responses. When providing code, use proper code blocks with syntax highlighting.' },
+            { role: 'system', content: 'You are a helpful AI assistant. Provide clear, detailed responses in plain text. Avoid markdown bold/italic markers like ** and * unless the user explicitly asks for markdown. When providing code, use proper fenced code blocks with syntax highlighting.' },
             ...messages,
             userMsg
           ],
