@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, ChevronRight, Code2 } from 'lucide-react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setUserData } from '../../redux/userSlice';
 
 const navLinks = [
   { name: 'Home', href: '#hero' },
@@ -21,6 +22,7 @@ function Navbar() {
   const { userData } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -107,12 +109,29 @@ function Navbar() {
           </div>
 
           <div className="hidden items-center gap-3 lg:flex">
-            <button
-              onClick={() => navigate('/auth')}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-300 transition hover:text-white"
-            >
-              Sign In
-            </button>
+            {!userData ? (
+              <button
+                onClick={() => navigate('/auth')}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-300 transition hover:text-white"
+              >
+                Sign In
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    await fetch('/api/auth/logout', { method: 'GET', credentials: 'include' });
+                  } catch (e) {
+                    console.warn('Logout request failed', e);
+                  }
+                  dispatch(setUserData(null));
+                  navigate('/');
+                }}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-300 transition hover:text-white"
+              >
+                Logout
+              </button>
+            )}
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -181,15 +200,33 @@ function Navbar() {
               </div>
 
               <div className="mt-8 flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    navigate('/auth');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300 transition hover:bg-white/5"
-                >
-                  Sign In
-                </button>
+                {!userData ? (
+                  <button
+                    onClick={() => {
+                      navigate('/auth');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300 transition hover:bg-white/5"
+                  >
+                    Sign In
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch('/api/auth/logout', { method: 'GET', credentials: 'include' });
+                      } catch (e) {
+                        console.warn('Logout request failed', e);
+                      }
+                      dispatch(setUserData(null));
+                      setMobileMenuOpen(false);
+                      navigate('/');
+                    }}
+                    className="rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300 transition hover:bg-white/5"
+                  >
+                    Logout
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     navigate('/auth');

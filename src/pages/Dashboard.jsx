@@ -12,14 +12,18 @@ import {
   Plus,
   Rocket,
   Search,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react'
+import { useDispatch } from 'react-redux'
+import { setUserData } from '../redux/userSlice'
 import { serverUrl } from '../config/api'
 import PageBackgroundVideo from '../components/PageBackgroundVideo'
 
 const Dashboard = () => {
   const { userData } = useSelector((state) => state.user)
   const navigate = useNavigate()
+  const dispatch = useDispatch()
 
   const [websites, setWebsites] = useState([])
   const [loading, setLoading] = useState(false)
@@ -198,6 +202,23 @@ const Dashboard = () => {
             >
               <Plus size={14} />
               New Website
+            </motion.button>
+            <motion.button
+              className='px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center gap-2'
+              onClick={async () => {
+                try {
+                  await fetch('/api/auth/logout', { method: 'GET', credentials: 'include' });
+                } catch (e) {
+                  console.warn('Logout request failed', e);
+                }
+                dispatch(setUserData(null));
+                navigate('/');
+              }}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <LogOut size={14} />
+              Logout
             </motion.button>
           </div>
         </div>
